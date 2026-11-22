@@ -4,6 +4,4 @@
 export const CLOUD = {
   projectId: 'dopakanji',
   apiKey: 'AIzaSyCMoytEi_LEO3i03BpMn3fB66_q2Y841TU',
-  // Storage を作ったあと、firebaseConfig の storageBucket の値を写す（新しいプロジェクトは「…firebasestorage.app」）
-  storageBucket: 'dopakanji.firebasestorage.app',
 };

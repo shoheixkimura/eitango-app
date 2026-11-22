@@ -1,11 +1,10 @@
-// クラウド同期（Firestore と Firebase Storage の REST API。SDK は使わない）。
-// Firestore: eitango_families/{合言葉のハッシュ}/profiles|progress|decks/{ID}
-// Storage:   eitango/{合言葉のハッシュ}/decks/{単語帳のID}/...
+// クラウド同期（Firestore の REST API。SDK は使わない。無料の Spark プランで動く）。
+// eitango_families/{合言葉のハッシュ}/profiles|progress|decks/{ID}
+// eitango_families/{合言葉のハッシュ}/blobs/{単語帳のID}_{版}_b{番号}|m{番号}  … 単語帳の本文と音声・画像
 // 削除はアプリからは行わない（ルールでも禁止。消せるのは Firebase コンソールの管理者だけ）
 import { CLOUD } from './cloud-config.js';
 
 export const cloudReady = () => !!(CLOUD.projectId && CLOUD.apiKey);
-export const storageReady = () => cloudReady() && !!CLOUD.storageBucket;
 const fsBase = () => `https://firestore.googleapis.com/v1/projects/${CLOUD.projectId}/databases/(default)/documents`;
 const key = () => `key=${encodeURIComponent(CLOUD.apiKey)}`;
 
@@ -54,25 +53,25 @@ export async function putDoc(code, col, id, obj, keepalive = false) {
   await call(`${await docPath(code, col, id)}?${key()}`, { method: 'PATCH', keepalive: keepalive && body.length < 60000, headers: { 'Content-Type': 'application/json' }, body });
 }
 
-// ───────── Firebase Storage ─────────
-const stBase = () => `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(CLOUD.storageBucket)}/o`;
-const objName = async (code, deckId, rel) => `eitango/${await famId(code)}/decks/${deckId}/${rel}`;
-/** ファイルをアップロード（すでにあれば何もしない。ルールで上書きは禁止） */
-export async function uploadFile(code, deckId, rel, data, type) {
-  const name = await objName(code, deckId, rel);
+// ───────── 単語帳の中身（Firestore に約900KBずつのかたまりで置く。無料の Spark プランで使える） ─────────
+const b64 = (u8) => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = (s) => { const bin = atob(s), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; };
+/** かたまりを1つ置く。すでにあれば何もしない（ルールで上書きは禁止） */
+export async function putBlob(code, id, bytes) {
+  const body = JSON.stringify({ fields: { b: { bytesValue: b64(bytes) }, updated: { integerValue: String(Date.now()) } } });
   try {
-    await call(`${stBase()}?uploadType=media&name=${encodeURIComponent(name)}`, { method: 'POST', headers: { 'Content-Type': type || 'application/octet-stream' }, body: data });
+    await call(`${await docPath(code, 'blobs', id)}?currentDocument.exists=false&${key()}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body });
   } catch (e) {
-    // 上書きが禁止されて 403 のときは、すでにあるかを確かめる
-    if (e.status === 403 && (await existsFile(code, deckId, rel))) return;
+    // すでにある（400 / 409）、または上書き禁止で 403 → あるかどうかを確かめる
+    if ([400, 403, 409].includes(e.status) && (await hasBlob(code, id))) return;
     throw e;
   }
 }
-export async function existsFile(code, deckId, rel) {
-  try { await call(`${stBase()}/${encodeURIComponent(await objName(code, deckId, rel))}`); return true; }
-  catch (e) { if (e.status === 404 || e.status === 403) return false; throw e; }
+export async function hasBlob(code, id) {
+  try { await call(`${await docPath(code, 'blobs', id)}?mask.fieldPaths=updated&${key()}`); return true; }
+  catch (e) { if (e.status === 404) return false; throw e; }
 }
-export async function downloadFile(code, deckId, rel) {
-  const r = await call(`${stBase()}/${encodeURIComponent(await objName(code, deckId, rel))}?alt=media`);
-  return r.arrayBuffer();
+export async function getBlob(code, id) {
+  const j = await json(`${await docPath(code, 'blobs', id)}?${key()}`);
+  return unb64(j.fields.b.bytesValue);
 }

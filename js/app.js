@@ -6,8 +6,9 @@ import { audioCfg, ensureAudio, resetAudio, playVoice, preload, stopVoice, tone 
 import { sanitize, plainText, soundsOf, imagesOf } from './sanitize.js';
 import { readApkg, guessMap, buildDeck, deckIdFor, cardOf, ROLES } from './importer.js';
 import * as idb from './idb.js';
-import { cloudReady, storageReady, listDocs, getDoc, putDoc } from './cloud.js';
-import { uploadDeck, uploadState, fetchDeck, fillMedia, fetchOne, deckMeta, typeOf, isAudio, isRunning } from './share.js';
+import { cloudReady, listDocs, getDoc, putDoc } from './cloud.js';
+import { uploadDeck, uploadState, fetchDeck, fillMedia, fetchOne, deckMeta, planPack, typeOf, isAudio, isRunning } from './share.js';
+const storageReady = cloudReady; // 単語帳の中身も Firestore に置く（無料の Spark プランで使える）
 
 // ───────── 基本 ─────────
 const LS_KEY = 'eitango.v1', PROG_KEY = 'eitango.prog.';
@@ -175,9 +176,9 @@ function startUpload(id) {
   idb.getDeck(id).then((deck) => {
     if (!deck) return;
     const k = 'up:' + id, by = P ? P.name : '';
-    setTask(k, `「${deck.name}」を家族と共有しています`, 0, Object.keys(deck.media).length);
+    setTask(k, `「${deck.name}」を家族と共有しています`, 0, 0);
     uploadDeck(DB.family, deck, by, (d, t) => setTask(k, `「${deck.name}」を家族と共有しています`, d, t))
-      .then((ok) => { if (ok) { DB.decks[id] = { ...DB.decks[id], done: true, uploaded: Object.keys(deck.media).length }; saveLocal(); setTask(k, `「${deck.name}」を共有しました`, 1, 1); } })
+      .then((ok) => { if (ok) { DB.decks[id] = { ...DB.decks[id], done: true }; saveLocal(); setTask(k, `「${deck.name}」を共有しました`, 1, 1); } })
       .catch((e) => setTask(k, `「${deck.name}」の共有が途中で止まりました（あとで続きから）`, 0, 0, e.message));
   });
 }
@@ -187,7 +188,7 @@ async function downloadDeck(id, firstOnly = false) {
   if (!meta || !cloudOn() || !storageReady()) return null;
   const k = 'dl:' + id;
   try {
-    setTask(k, `「${meta.name}」をダウンロードしています`, 0, meta.total || 0);
+    setTask(k, `「${meta.name}」をダウンロードしています`, 0, 0);
     const deck = await fetchDeck(DB.family, meta);
     delete DECKS[id];
     DB.decks[id] = { ...DB.decks[id], local: true }; saveLocal();
@@ -629,6 +630,7 @@ function viewImport() {
         const name = $('#dname').value.trim() || res.topName;
         const deck = buildDeck(res, maps, id, name);
         if (exists && exists.created) deck.created = Math.max(Date.now(), exists.created + 1);
+        deck.pack = planPack(deck);
         $('#step').innerHTML = '<p>この端末に保存しています…</p>';
         try {
           const items = res.media.map((m) => [m.name, m.data]);
@@ -644,7 +646,7 @@ function viewImport() {
         if (cloudOn()) { putDoc(DB.family, 'decks', id, deckMeta(deck, { by: P ? P.name : '', uploaded: 0, done: false })).catch(() => {}); startUpload(id); }
         progEl.innerHTML = '';
         $('#step').innerHTML = `<p class="ok">✔ 「${esc(name)}」を取り込みました（${deck.notes.length}文）。</p>
-          ${cloudOn() ? (storageReady() ? '<p class="note">家族の端末で使えるように、裏でアップロードしています。この画面を閉じても、次にひらいたとき続きからアップロードします。</p>' : '<p class="note">Storage が未設定なので、この端末だけで使えます。</p>') : ''}
+          ${cloudOn() ? (storageReady() ? '<p class="note">家族の端末で使えるように、裏でアップロードしています。この画面を閉じても、次にひらいたとき続きからアップロードします。</p>' : '') : ''}
           <div class="row"><button class="btn primary big" data-act="home">ホームへ</button></div>`;
       },
       again: () => go(viewImport),

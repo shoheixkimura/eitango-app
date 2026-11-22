@@ -15,7 +15,7 @@ Anki の .apkg ファイルを取り込み、FSRS（目標の記憶率 90%）で
 2. 「設定 → 家族の合言葉と同期」で合言葉を決めます（「自動で作る」も使えます）。家族の端末すべてに同じ合言葉を入れます。
    2台目からは、最初の画面の「家族の合言葉で記録をよびだす」から入れられます。
 3. 「設定 → .apkg を取り込む」で単語帳を取り込みます。どのフィールドを英文・和訳・音声・画像にするかを自動で推定し、プレビューを見て変えられます。
-   取り込んだ単語帳は、裏でアップロードされ、同じ合言葉の端末すべてで使えます（ほかの端末ではホームの「ダウンロードする」）。
+   取り込んだ単語帳は、裏で Firestore にアップロードされ、同じ合言葉の端末すべてで使えます（ほかの端末ではホームの「ダウンロードする」）。
 4. ホームの「学習をはじめる」で、今日の分（期限がきた復習＋新しいカード）を学習します。終わったら「新しいカードをあと10枚」で追加できます。
 
 PC ではキーボードも使えます：スペース＝答えを見る（答えの画面では「できた」）、1〜4＝評価、R＝もう一度聞く。
@@ -43,67 +43,25 @@ python3 -m http.server 8000
 # http://localhost:8000/ と http://localhost:8000/tests.html
 ```
 
-## Firebase の設定
+## Firebase の設定（無料の Spark プランのまま）
 
-漢字アプリと同じ Firebase プロジェクト（`dopakanji`）を使います。置き場所は漢字アプリと混ざらないように別にしています。
+漢字アプリと同じ Firebase プロジェクト（`dopakanji`）の Firestore だけを使います。Blaze プランへの切り替えや Storage は要りません。
+置き場所は漢字アプリと混ざらないように別のコレクションにしています。
 
 | 何を | どこに |
 | --- | --- |
-| 人の記録（名前・設定・日ごとの回答数） | Firestore `eitango_families/{合言葉のハッシュ}/profiles/{人のID}` |
-| 各カードの FSRS の状態 | Firestore `eitango_families/{合言葉のハッシュ}/progress/{人のID}_{単語帳のID}` |
-| 単語帳の一覧 | Firestore `eitango_families/{合言葉のハッシュ}/decks/{単語帳のID}` |
-| 単語帳の本文と音声・画像 | Storage `eitango/{合言葉のハッシュ}/decks/{単語帳のID}/...` |
+| 人の記録（名前・設定・日ごとの回答数） | `eitango_families/{合言葉のハッシュ}/profiles/{人のID}` |
+| 各カードの FSRS の状態 | `eitango_families/{合言葉のハッシュ}/progress/{人のID}_{単語帳のID}` |
+| 単語帳の一覧 | `eitango_families/{合言葉のハッシュ}/decks/{単語帳のID}` |
+| 単語帳の本文と音声・画像 | `eitango_families/{合言葉のハッシュ}/blobs/{単語帳のID}_{版}_b0…`・`_m0…`（約900KBずつのかたまり） |
 
 合言葉そのものはどこにも送りません（SHA-256 のハッシュだけを置き場所の名前に使います）。
 市販教材の音声を扱うので、単語帳の中身は公開リポジトリや GitHub Pages には置かず、家族の合言葉の場所にだけ置きます。
 
-### 1. Blaze プランに切り替える
+### Firestore のルールを追加する
 
-Firebase Storage を使うには従量課金の Blaze プランが必要です（家族で使う量なら、ほぼ無料枠の中に収まる見込みです）。
-
-1. [Firebase コンソール](https://console.firebase.google.com/) で `dopakanji` をひらく
-2. 左下の「Spark」（プラン名）→「プランをアップグレード」→ Blaze を選ぶ
-3. お支払いアカウント（クレジットカード）を選ぶか作る
-
-### 2. 予算アラートを設定する（例：月100円）
-
-予算アラートは「使いすぎたらメールで知らせる」しくみです（自動で止まるわけではありません）。
-
-1. [Google Cloud コンソールの「お支払い」→「予算とアラート」](https://console.cloud.google.com/billing/budgets) をひらく
-2. 「予算を作成」→ 名前（例：家族アプリ）、対象のプロジェクトに `dopakanji` を選ぶ
-3. 金額を「指定した金額」で **100円** にする
-4. しきい値を 50%・90%・100% にし、「請求先アカウントの管理者とユーザーにメールで通知」をオンにして保存
-
-### 3. Storage を作る
-
-1. Firebase コンソール →「構築」→「Storage」→「始める」
-2. 場所は無料枠のあるリージョン（`US-CENTRAL1` など）を選ぶ。「本番環境モード」で作成
-3. 「プロジェクトの設定」→「マイアプリ」の firebaseConfig にある `storageBucket` の値を、`js/cloud-config.js` の `storageBucket` に写す
-   （いまは `dopakanji.firebasestorage.app` を入れてあります。ちがう値だったら差しかえてください）
-
-### 4. Storage のルールを追加する
-
-Storage の「ルール」タブに [`firebase/storage.rules`](firebase/storage.rules) の内容をはりつけて「公開」します。
-
-```
-rules_version = '2';
-service firebase.storage {
-  match /b/{bucket}/o {
-    match /eitango/{fam}/decks/{deck}/{file=**} {
-      allow get: if fam.size() == 64;
-      allow create: if fam.size() == 64
-        && request.resource.size < 20 * 1024 * 1024; // 1ファイル 20MB まで
-      allow list, update, delete: if false;
-    }
-  }
-}
-```
-
-`eitango/` の下だけ、1ファイルずつの読み取りと新しいファイルの作成ができます。上書き・一覧・削除はできません。
-
-### 5. Firestore のルールを追加する
-
-Firestore の「ルール」タブで、**いまある漢字アプリのルールは消さずに**、`match /databases/{database}/documents { … }` の中に次のかたまりを追加して「公開」します（全体の例は [`firebase/firestore.rules`](firebase/firestore.rules)）。
+[Firebase コンソール](https://console.firebase.google.com/) → `dopakanji` → Firestore Database →「ルール」タブで、
+**いまある漢字アプリのルールは消さずに**、`match /databases/{database}/documents { … }` の中に次の2つのかたまりを追加して「公開」します（全体の例は [`firebase/firestore.rules`](firebase/firestore.rules)）。
 
 ```
     match /eitango_families/{fam}/{col}/{doc} {
@@ -114,14 +72,39 @@ Firestore の「ルール」タブで、**いまある漢字アプリのルー�
         && request.resource.data.json.size() < 1000000;
       allow delete: if false;
     }
+    match /eitango_families/{fam}/blobs/{id} {
+      allow get: if fam.size() == 64;
+      allow create: if fam.size() == 64
+        && request.resource.data.keys().hasOnly(['b', 'updated'])
+        && request.resource.data.b is bytes
+        && request.resource.data.b.size() <= 950000;
+      allow list, update, delete: if false;
+    }
 ```
 
-読み取り・作成・更新はでき、削除はできません。
+- 人の記録・カードの記録・単語帳の一覧は、読み取り・作成・更新ができ、削除はできません。
+- 単語帳のかたまりは、1つずつの読み取りと新しく作ることだけができます（上書き・一覧・削除はできません）。1つ 950KB まで。
+
+### 無料枠に収まるか
+
+Spark プランの Firestore の無料枠は、保存 1GiB、読み取り 1日5万回、書き込み 1日2万回、転送 月10GiB です（2026年11月時点。最新は [Firebase の料金ページ](https://firebase.google.com/pricing) で確かめてください）。
+Spark プランにはお支払い情報がないので、枠をこえてもお金はかからず、その日（その月）はクラウドが使えなくなるだけです（端末の中では学習を続けられます）。
+
+DUO 3.0 のサンプル（560文・音声559個）の場合：
+
+| | 量 | 無料枠に対して |
+| --- | --- | --- |
+| 保存 | 約33MB（かたまり39個） | 1GiB の約3%。同じくらいの単語帳なら30冊ほど置けます |
+| 取り込み（1回だけ） | 書き込み約40回 | 1日2万回の 0.2% |
+| ほかの端末でダウンロード（1台1回だけ） | 読み取り約40回・約33MB | 4台でも 約130MB で、月10GiB の約1.3% |
+| ふだんの学習と同期 | 1回の同期で読み取り10回ほど | 4人が毎日使っても 1日数百回ほど |
+
+同じ単語帳を取り込みなおすと、新しい版として全部アップロードしなおします（古い版のかたまりは残るので、気になるときは管理者が消してください）。
 
 ### 消したいとき
 
 アプリからは、クラウドの記録や単語帳は消せません（「外す」は端末の一覧から外すだけです）。
-完全に消すときは、管理者が Firebase コンソールの Firestore（`eitango_families`）と Storage（`eitango/`）から消します。
+完全に消すときは、管理者が Firebase コンソールの Firestore で `eitango_families` の中から消します。
 
 ## しくみのメモ
 

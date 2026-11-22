@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>テスト</title>
+<style>
+  :root { --bg: #fff; --ink: #1d2540; --ok: #1f9d6b; --ng: #e5484d; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #151a26; --ink: #e9ecf6; } }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.6 system-ui, sans-serif; max-width: 820px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; } h2 { font-size: 16px; margin: 18px 0 4px; }
+  .ok { color: var(--ok); } .ng { color: var(--ng); font-weight: 700; }
+  #sum { font-size: 18px; font-weight: 700; }
+  li { list-style: none; } li::before { margin-right: 6px; }
+</style>
+</head>
+<body>
+<h1>テスト（FSRS・日付と週・合流・取り込み）</h1>
+<p id="sum">実行中…</p>
+<div id="out"></div>
+<script type="module" src="js/tests.js"></script>
+</body>
+</html>

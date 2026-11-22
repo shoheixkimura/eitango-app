@@ -63,7 +63,7 @@ export function uploadDeck(code, deck, by, onProg = () => {}) {
 export async function uploadState(deck) {
   const done = new Set((await idb.getMeta('up:' + deck.id)) || []);
   const names = Object.keys(deck.media || {});
-  return { done: names.filter((n) => done.has(n)).length + (done.has('#' + deckFile(deck)) ? 0 : 0), total: names.length, json: done.has('#' + deckFile(deck)) };
+  return { done: names.filter((n) => done.has(n)).length, total: names.length, json: done.has('#' + deckFile(deck)) };
 }
 
 /** 本文をダウンロード（なければ、または新しい版があれば） */

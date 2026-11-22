@@ -251,7 +251,7 @@ const syncLine = () => (cloudOn() ? `<p class="sync ${syncMsg ? 'bad' : ''}">☁
 function rankRows(R, me, compact = false) {
   const top = Math.max(1, ...R.map((r) => r.week));
   return R.map((r, i) => {
-    const up = r.week > 0 && r.week > r.last, upSoFar = !up && r.week > r.lastSoFar && r.lastSoFar > 0;
+    const up = r.last > 0 && r.week > r.last, upSoFar = !up && r.lastSoFar > 0 && r.week > r.lastSoFar;
     const badge = up ? '<em class="bdg up">🚀 先週超え！</em>' : upSoFar ? `<em class="bdg">📈 先週のこの時点より +${r.week - r.lastSoFar}</em>` : '';
     const tag = compact ? 'div' : 'button';
     return `<${tag} class="rk ${r.p === me ? 'me' : ''}" ${compact ? '' : `data-act="pick" data-id="${r.p.id}"`}>
@@ -271,7 +271,7 @@ function cheer(R, me) {
     return g2 > 0 ? `いま1位！ 2位の${esc(R[1].p.name)}さんと ${g2}枚差です。` : 'いま1位タイ！ あと1枚で単独トップ。';
   }
   const gap = gapToNext(R, i), above = R[i - 1];
-  const head = r.week > r.last && r.week > 0 ? '先週より多く学習できています！ ' : '';
+  const head = r.last > 0 && r.week > r.last ? '先週より多く学習できています！ ' : '';
   return `${head}あと <b>${gap}</b>枚で ${esc(above.p.name)}さんを抜けます。`;
 }
 

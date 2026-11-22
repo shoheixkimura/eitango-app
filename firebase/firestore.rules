@@ -1,0 +1,20 @@
+// 英文暗記アプリ用の Firestore ルール（案）。
+// いまある漢字アプリのルールは消さずに、match /databases/{database}/documents { … } の中に
+// 下の「match /eitango_families/…」のかたまりを追加してください。
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // （ここに、いまある漢字アプリのルールがそのまま残る）
+
+    // ── 英文暗記アプリ：eitango_families/{合言葉のハッシュ}/{profiles|progress|decks}/{ID} ──
+    match /eitango_families/{fam}/{col}/{doc} {
+      allow read: if fam.size() == 64 && col in ['profiles', 'progress', 'decks'];
+      allow create, update: if fam.size() == 64 && col in ['profiles', 'progress', 'decks']
+        && request.resource.data.keys().hasOnly(['json', 'updated'])
+        && request.resource.data.json is string
+        && request.resource.data.json.size() < 1000000;
+      allow delete: if false; // 消せるのは Firebase コンソールの管理者だけ
+    }
+  }
+}

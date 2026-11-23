@@ -3,6 +3,7 @@ import { setDebugDate, today, now, weekStart, addDays, endOfDay } from './dates.
 import { Rating, State, pack, unpack, rate, preview, ivlLabel, dayQueue, pickNext, summarize, newLimit, scheduler, isRetired, setRetired, retiredList, hasNewLeft } from './srs.js';
 import { streak, weekN, lastWeekN, lastWeekSoFarN, ranking, gapToNext, mergeProfile, mergeProgress, pickCard } from './records.js';
 import { guessMap } from './importer.js';
+import { wordKey, parseExtFile, matchCount, isExtDoc } from './extras.js';
 import { sanitize, plainText, soundsOf } from './sanitize.js';
 
 const out = document.getElementById('out');
@@ -126,6 +127,14 @@ try {
   eq(Object.keys(mp.c).sort(), ['g1', 'g2', 'g3'], 'どちらかで答えたカードはすべて残る');
   eq(mp.c.g1.r, 2, 'カードごとに復習回数が多いほう');
   eq(mp.nd['2026-12-02'], { n: 3, x: 10 }, 'その日に始めた数・追加した枠は多いほう');
+
+  group('やさしい説明・語源');
+  eq([wordKey('wrap up ～'), wordKey('<b>Veteran</b>'), wordKey('  look  into ')], ['wrap up', 'veteran', 'look into'], '単語の見出しをそろえる');
+  const items = parseExtFile(JSON.stringify({ items: { Juror: ['裁判で話し合う人', 'jur(法)+-or(人)'], empty: ['', ''] } }));
+  eq(items, { juror: ['裁判で話し合う人', 'jur(法)+-or(人)'] }, '説明ファイルを読む（空のものは入れない）');
+  eq(parseExtFile(JSON.stringify([{ word: 'jury', easy: 'a', ety: '' }])), { jury: ['a', ''] }, '配列の形も読める');
+  eq(matchCount(['juror', 'jury', 'JUROR'], items), 2, '単語帳と合う数');
+  ok(isExtDoc({ id: 'xd123', kind: 'ext' }) && !isExtDoc({ id: 'd123' }), '説明の目印は単語帳の一覧に入れない');
 
   group('取り込み（フィールドの推定・安全な表示）');
   const notes = [{ f: ['I like apples.', 'りんごが好きです。', '[sound:a.mp3]', '<img src="x.png">'] }, { f: ['See you.', 'またね。', '[sound:b.mp3]', ''] }];

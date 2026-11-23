@@ -6,6 +6,7 @@ import { audioCfg, ensureAudio, resetAudio, playVoice, preload, stopVoice, tone 
 import { sanitize, plainText, soundsOf, imagesOf } from './sanitize.js';
 import { readApkg, guessMap, buildDeck, sortNotes, deckIdFor, cardOf, ROLES } from './importer.js';
 import * as idb from './idb.js';
+import { wordKey, isExtDoc, parseExtFile, matchCount, getLocalExt, saveExt, uploadExt, syncExt } from './extras.js';
 import { cloudReady, listDocs, getDoc, putDoc } from './cloud.js';
 import { uploadDeck, uploadState, fetchDeck, fillMedia, fetchOne, deckMeta, planPack, typeOf, isAudio, isRunning } from './share.js';
 const storageReady = cloudReady; // 単語帳の中身も Firestore に置く（無料の Spark プランで使える）
@@ -28,7 +29,7 @@ let P = null; // 今の人
 function loadDB() {
   try {
     const d = JSON.parse(localStorage.getItem(LS_KEY));
-    if (d && Array.isArray(d.profiles)) { d.decks = d.decks || {}; d.hidden = d.hidden || []; d.deleted = d.deleted || []; d.profiles.forEach(fixProfile); return d; }
+    if (d && Array.isArray(d.profiles)) { d.decks = d.decks || {}; d.hidden = d.hidden || []; d.deleted = d.deleted || []; d.profiles.forEach(fixProfile); for (const k of Object.keys(d.decks)) if (isExtDoc(d.decks[k])) delete d.decks[k]; return d; }
   } catch { /* 初回 */ }
   return { v: 1, profiles: [], current: null, sound: true, family: '', lastSync: 0, deleted: [], decks: {}, hidden: [] };
 }
@@ -68,7 +69,8 @@ async function loadDeck(id) {
   const deck = await idb.getDeck(id).catch(() => null);
   if (!deck) return null;
   if (DB.decks[id] && DB.decks[id].name) deck.name = DB.decks[id].name;
-  return (DECKS[id] = { deck, order: deck.notes.map((n) => n[0]), byG: new Map(deck.notes.map((n) => [n[0], n])) });
+  const ext = await getLocalExt(id);
+  return (DECKS[id] = { deck, order: deck.notes.map((n) => n[0]), byG: new Map(deck.notes.map((n) => [n[0], n])), ext: (ext && ext.items) || {} });
 }
 function curDeckId() {
   const vis = visibleDecks();
@@ -118,8 +120,10 @@ async function syncNow() {
     }
     // 単語帳の一覧
     const decks = await listDocs(fam, 'decks').catch(() => []);
+    const exts = {};
     for (const m of decks) {
       if (!m || !m.id) continue;
+      if (isExtDoc(m)) { exts[m.deck] = m; continue; }
       const l = DB.decks[m.id] || {};
       DB.decks[m.id] = { ...l, ...m, local: !!l.local, created: l.created || m.upd };
       if (DECKS[m.id] && m.name) DECKS[m.id].deck.name = m.name;
@@ -140,6 +144,14 @@ async function syncNow() {
         if (JSON.stringify(m) !== JSON.stringify(rem)) await putDoc(fam, 'progress', m.id, m);
         dirty.delete('g:' + m.id);
       }
+    }
+    // やさしい説明・語源：クラウドが新しければ取ってくる、この端末が新しければ置く
+    for (const did of Object.keys(DB.decks)) {
+      try {
+        const m = exts[did], local = await getLocalExt(did);
+        if (m && await syncExt(fam, m)) { if (DECKS[did]) DECKS[did].ext = ((await getLocalExt(did)) || {}).items || {}; }
+        else if (local && (!m || (local.at || 0) > (m.upd || 0))) await uploadExt(fam, did, local);
+      } catch { /* 次の同期で */ }
     }
     // この端末で取り込んで、まだクラウドにない（終わっていない）単語帳はアップロードを続ける
     for (const d of Object.values(DB.decks)) if (d.local && d.mine && !d.done) startUpload(d.id);
@@ -473,6 +485,7 @@ async function viewStudy(did) {
     const mp = D.deck.models[D.byG.get(S.cur)[1]].map, url = (n) => c.imgs[n] || null;
     const en = sanitize(c.en, url, mp.img === mp.en), ja = sanitize(c.ja, url, mp.img === mp.ja);
     const pos = plainText(c.pos), ex = sanitize(c.ex, url, true), exja = sanitize(c.exja, url, true);
+    const xt = (D.ext || {})[wordKey(c.en)];
     let foot;
     if (!S.back) foot = `<button class="btn primary huge show" data-act="show">答えを見る<small>スペース</small></button>`;
     else {
@@ -489,6 +502,7 @@ async function viewStudy(did) {
         <div class="en ${plainText(c.en).split(' ').length <= 3 ? 'word' : ''}">${en || '<span class="note">（英語がありません）</span>'}</div>
         ${c.snd[0] ? '<button class="btn listen" data-act="play">🔊 もう一度聞く<small>R</small></button>' : ''}
         ${S.back ? `<hr>${pos ? `<span class="pos">${esc(pos)}</span>` : ''}<div class="ja">${ja || '<span class="note">（和訳がありません）</span>'}</div>
+          ${xt && (xt[0] || xt[1]) ? `<div class="xtra">${xt[0] ? `<p class="xeasy"><b>💡 やさしい説明</b>${esc(xt[0])}</p>` : ''}${xt[1] ? `<p class="xety"><b>🧩 語源</b>${esc(xt[1])}</p>` : ''}</div>` : ''}
           ${ex ? `<div class="ex"><div class="exen">${ex}</div>${exja ? `<div class="exja">${exja}</div>` : ''}${c.snd2[0] ? '<button class="btn listen sm2" data-act="playex">🔊 例文を聞く<small>E</small></button>' : ''}</div>` : ''}` : ''}
       </section>
       <footer class="sfoot">${foot}</footer>
@@ -739,9 +753,11 @@ async function viewSettings() {
     <section class="card">
       <h3>📘 単語帳</h3>
       ${decks.map((d) => `<div class="drow"><div><b>${esc(d.name)}</b><small>${d.count || 0}文・音声${d.audio || 0}個${d.local ? '' : '・未ダウンロード'}${ups[d.id] && cloudOn() ? (d.done ? '・家族と共有ずみ' : `・共有 ${ups[d.id].done}/${ups[d.id].total}`) : ''}</small></div>
-        <span><button class="btn sm" data-act="rename" data-id="${d.id}">名前</button>${ups[d.id] && cloudOn() && !d.done ? `<button class="btn sm" data-act="upload" data-id="${d.id}">共有を続ける</button>` : ''}<button class="btn sm danger" data-act="hide" data-id="${d.id}">外す</button></span></div>`).join('') || '<p class="note">まだありません</p>'}
+        <span><button class="btn sm" data-act="rename" data-id="${d.id}">名前</button>${d.local ? `<button class="btn sm" data-act="extpick" data-id="${d.id}">💡 説明</button>` : ''}${ups[d.id] && cloudOn() && !d.done ? `<button class="btn sm" data-act="upload" data-id="${d.id}">共有を続ける</button>` : ''}<button class="btn sm danger" data-act="hide" data-id="${d.id}">外す</button></span></div>`).join('') || '<p class="note">まだありません</p>'}
       ${Object.keys(TASKS).filter((k) => k !== 'imp').map(taskHtml).join('')}
       <div class="row"><button class="btn primary" data-act="import">📥 .apkg を取り込む</button>${hidden.length ? `<button class="btn" data-act="unhide">外した単語帳をもどす（${hidden.length}）</button>` : ''}</div>
+      <input type="file" id="extfile" accept="application/json,.json" hidden>
+      <p class="note">「💡 説明」で、やさしい説明と語源のファイル（.json）を取り込めます。答えの画面に出て、家族の端末にも共有されます。単語帳を取り込み直しても消えません。</p>
       <p class="note">「外す」は一覧から外すだけです。クラウドの単語帳と学習記録は消えません（完全に消すのは管理者が Firebase の画面で行います）。</p>
     </section>
     <section class="card">
@@ -772,6 +788,22 @@ async function viewSettings() {
     const id = e.target.id, v = e.target.value;
     if (id === 'newPerDay') { P.newPerDay = +v; save(); }
     if (id === 'sound') { DB.sound = v === '1'; audioCfg.sfx = DB.sound; saveLocal(); }
+    if (id === 'extfile' && e.target.files[0]) {
+      const did = e.target.dataset.deck, f = e.target.files[0];
+      e.target.value = '';
+      (async () => {
+        const items = parseExtFile(await f.text());
+        const D = await loadDeck(did);
+        const words = D.deck.notes.map((n) => cardOf(D.deck, n).en), hit = matchCount(words, items);
+        if (!hit) throw new Error('この単語帳の単語と1つも合いませんでした');
+        if (!confirm(`「${D.deck.name}」の ${words.length}枚のうち ${hit}枚に、やさしい説明・語源をつけます。前に取り込んだ説明とは置きかわります。よろしいですか？`)) return;
+        await saveExt(null, did, items);
+        D.ext = items;
+        if (cloudOn()) await syncNow();
+        alert(`${hit}枚に説明をつけました。${cloudOn() ? '家族の端末にも共有しました。' : ''}`);
+        go(viewSettings);
+      })().catch((err) => alert('取り込めませんでした: ' + err.message));
+    }
     if (id === 'bkfile' && e.target.files[0]) {
       e.target.files[0].text().then((txt) => {
         const d = JSON.parse(txt);
@@ -828,6 +860,7 @@ async function viewSettings() {
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
     },
     importbk: () => $('#bkfile').click(),
+    extpick: (el) => { const f = $('#extfile'); f.dataset.deck = el.dataset.id; f.click(); },
     gen: () => { const a = new Uint32Array(3); crypto.getRandomValues(a); $('#fam').value = [...a].map((x) => x.toString(36).padStart(6, '0').slice(-5)).join('-'); },
     link: async () => {
       const code = $('#fam').value.trim();

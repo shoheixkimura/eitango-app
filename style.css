@@ -222,3 +222,13 @@ header.top > span:empty { width: 70px; }
 
 /* アプリのアイコン（最初の画面） */
 .mark { display: block; width: 76px; height: 76px; padding: 0; border-radius: 50%; object-fit: contain; margin: 0 auto 8px; box-shadow: var(--shadow); }
+
+/* やさしい説明・語源（答えの画面） */
+.xtra { margin-top: 14px; text-align: left; display: grid; gap: 8px; }
+.xtra p { margin: 0; padding: 10px 14px; border-radius: 14px; font-size: 15px; line-height: 1.65; overflow-wrap: anywhere; }
+.xtra b { display: block; font-size: 12px; margin-bottom: 2px; }
+.xeasy { background: color-mix(in srgb, var(--acc) 22%, var(--card)); }
+.xeasy b { color: #8a5a00; }
+.xety { background: color-mix(in srgb, var(--grad) 12%, var(--card)); }
+.xety b { color: var(--grad); }
+@media (prefers-color-scheme: dark) { .xeasy b { color: var(--acc); } }

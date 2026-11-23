@@ -1,9 +1,9 @@
 // オフラインでも動くように。ネット優先（毎回サーバーに新しい版がないか確かめる）・だめならキャッシュ。
 // 単語帳の中身（英文・音声）はここには入れない（IndexedDB に入れる）。
-const CACHE = 'eitango-v1.3.2';
+const CACHE = 'eitango-v1.4.0';
 const FILES = ['./', 'index.html', 'style.css', 'manifest.webmanifest', 'favicon.png', 'icon-180.png', 'icon-192.png',
   'js/app.js', 'js/config.js', 'js/dates.js', 'js/srs.js', 'js/records.js', 'js/idb.js', 'js/sanitize.js', 'js/importer.js', 'js/anki-worker.js',
-  'js/audio.js', 'js/cloud.js', 'js/cloud-config.js', 'js/share.js',
+  'js/audio.js', 'js/cloud.js', 'js/cloud-config.js', 'js/share.js', 'js/extras.js',
   'vendor/ts-fsrs.mjs', 'vendor/fflate.umd.js', 'vendor/fzstd.umd.js', 'vendor/sql-wasm.js', 'vendor/sql-wasm.wasm'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'reload' })))).then(() => self.skipWaiting()));

@@ -55,9 +55,6 @@ header.top > span:empty { width: 70px; }
 /* 名前を選ぶ */
 .logo { text-align: center; font-size: 30px; margin: 5vh 0 8px; font-weight: 800; letter-spacing: .02em; }
 .logo small { display: block; font-size: 15px; color: var(--sub); font-weight: 400; margin-top: 6px; }
-.mark { display: inline-flex; align-items: flex-end; justify-content: center; width: 64px; height: 64px; border-radius: 18px; background: var(--pri); color: #fff;
-  font-size: 34px; margin: 0 auto 12px; padding-bottom: 8px; position: relative; display: flex; }
-.mark i { position: absolute; right: -10px; bottom: -8px; background: var(--acc); color: #1d2540; font-style: normal; font-size: 18px; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; }
 .sec { font-size: 17px; margin: 28px 0 10px; }
 .people { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
 @media (min-width: 640px) { .people { grid-template-columns: repeat(4, 1fr); } }
@@ -224,4 +221,4 @@ header.top > span:empty { width: 70px; }
 @keyframes fade { from { opacity: 0; } }
 
 /* アプリのアイコン（最初の画面） */
-img.mark { display: block; width: 72px; height: 72px; border-radius: 50%; background: none; margin: 0 auto 6px; box-shadow: var(--shadow); }
+.mark { display: block; width: 76px; height: 76px; padding: 0; border-radius: 50%; object-fit: contain; margin: 0 auto 8px; box-shadow: var(--shadow); }

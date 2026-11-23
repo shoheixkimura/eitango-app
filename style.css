@@ -200,3 +200,25 @@ header.top > span:empty { width: 70px; }
   .gbtn b { font-size: 14px; }
   .drow { flex-wrap: wrap; } .drow > span { white-space: normal; }
 }
+
+/* 卒業（もう出さないカード）：評価ボタンから離れた、カードの右上に小さく */
+:root { --grad: #8b5cf6; }
+.grad { position: absolute; top: 12px; right: 14px; font-size: 12px; font-weight: 700; color: var(--sub); background: transparent; border: 1.5px solid var(--line); padding: 3px 10px; border-radius: 99px; }
+.grad:hover { color: var(--grad); border-color: var(--grad); }
+.sheetbg { position: fixed; inset: 0; background: rgba(10, 14, 30, .5); display: flex; align-items: flex-end; justify-content: center; z-index: 50; animation: fade .15s ease-out; }
+.sheet { background: var(--card); color: var(--ink); width: min(480px, 100%); border-radius: 24px 24px 0 0; padding: 24px 20px calc(20px + env(safe-area-inset-bottom)); text-align: center; animation: rise .2s ease-out; }
+.sheet h3 { margin: 4px 0 8px; }
+.sheet .gicon { font-size: 40px; }
+.sheet .gword { font-size: 22px; font-weight: 700; margin: 6px 0 10px; overflow-wrap: anywhere; }
+.row.col { flex-direction: column; align-items: stretch; }
+.btn.primary.big[data-act=gradyes] { background: var(--grad); border-color: var(--grad); }
+.s-x { background: var(--grad); }
+.glist { padding: 6px 16px; }
+.gitem { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.gitem:last-child { border-bottom: 0; }
+.gtxt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.gtxt small { color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast { position: fixed; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #1d2540; color: #fff; border-radius: 14px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; font-size: 14px; box-shadow: 0 6px 24px rgba(0, 0, 0, .3); z-index: 60; width: max-content; max-width: min(440px, calc(100% - 32px)); animation: fade .2s ease-out; }
+.toast span { flex: 1; min-width: 0; }
+.tbtn { color: var(--acc); font-weight: 700; background: none; border: 0; white-space: nowrap; }
+@keyframes fade { from { opacity: 0; } }

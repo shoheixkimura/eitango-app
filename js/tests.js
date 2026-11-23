@@ -1,6 +1,6 @@
 // ブラウザで動く小さなテスト。tests.html をひらくと実行される。
 import { setDebugDate, today, now, weekStart, addDays, endOfDay } from './dates.js';
-import { Rating, State, pack, unpack, rate, preview, ivlLabel, dayQueue, pickNext, summarize, newLimit, scheduler } from './srs.js';
+import { Rating, State, pack, unpack, rate, preview, ivlLabel, dayQueue, pickNext, summarize, newLimit, scheduler, isRetired, setRetired, retiredList, hasNewLeft } from './srs.js';
 import { streak, weekN, lastWeekN, lastWeekSoFarN, ranking, gapToNext, mergeProfile, mergeProgress, pickCard } from './records.js';
 import { guessMap } from './importer.js';
 import { sanitize, plainText, soundsOf } from './sanitize.js';
@@ -89,7 +89,26 @@ try {
   eq(pickNext(q, prog, 0, t0), 'g2', '学習中の期限前は復習を先に');
   eq(pickNext(q, prog, 2, t0), 'g1', '3枚に1枚は新しいカード');
   eq(pickNext({ review: [], fresh: [], learn: ['g5'], total: 1 }, prog, 0, t0), 'g5', '残りが学習中だけなら、期限前でも出す');
-  eq(summarize(order, { c: { g1: { t: 2, sd: 30 }, g2: { t: 2, sd: 3 }, g3: { t: 3, sd: 40 } } }), { m: 1, l: 2, u: 3, t: 6 }, '定着（21日以上）・学習中・未学習');
+  eq(summarize(order, { c: { g1: { t: 2, sd: 30 }, g2: { t: 2, sd: 3 }, g3: { t: 3, sd: 40 } } }), { m: 1, l: 2, u: 3, x: 0, t: 6 }, '定着（21日以上）・学習中・未学習');
+
+  group('卒業（もう出さないカード）');
+  const pr = { c: { g2: { t: 2, d: eodM - 600, r: 3, sd: 30 }, g5: { t: 1, d: t0 / MIN + 5, r: 1 } }, nd: {} };
+  setRetired(pr, 'g2', true, 100); setRetired(pr, 'g1', true, 100);
+  let qx = dayQueue(order, pr, prof, t0, '2026-12-02');
+  ok(!qx.review.includes('g2') && !qx.fresh.includes('g1'), '卒業したカードは復習にも新しいカードにも出ない', JSON.stringify(qx));
+  eq(qx.fresh, ['g3', 'g4', 'g6'], '新しいカードは次のカードがくり上がる');
+  eq(summarize(order, pr), { m: 0, l: 1, u: 3, x: 2, t: 6 }, 'まとめでは「卒業」として数える');
+  eq(retiredList(order, pr), ['g1', 'g2'], '卒業したカードの一覧');
+  ok(pr.c.g2.r === 3, '卒業しても FSRS の記録は残る');
+  setRetired(pr, 'g2', false, 200);
+  ok(!isRetired(pr, 'g2') && dayQueue(order, pr, prof, t0, '2026-12-02').review.includes('g2'), '戻すと、前の記録のまま復習に出る');
+  ok(!hasNewLeft(['g1', 'g2'], { c: { g2: { t: 2 } }, x: { g1: { v: 1, at: 1 } } }), '残りの新しいカードが卒業だけなら「新しいカードはない」');
+  const xa = { id: 'x', upd: 5, c: {}, nd: {}, x: { g1: { v: 1, at: 100 }, g2: { v: 1, at: 100 } } };
+  const xb = { id: 'x', upd: 1, c: {}, nd: {}, x: { g1: { v: 0, at: 300 }, g3: { v: 1, at: 50 } } };
+  const xm = mergeProgress(xa, xb);
+  eq(xm.x, { g1: { v: 0, at: 300 }, g2: { v: 1, at: 100 }, g3: { v: 1, at: 50 } }, '2台の合流：カードごとにあとで変えたほう（戻したのが後なら戻す）');
+  const sk = (o) => Object.keys(o).sort().map((k) => [k, o[k]]);
+  eq(sk(mergeProgress(xb, xa).x), sk(xm.x), '順番を入れかえても同じ結果');
 
   group('2台の記録の合流');
   eq(pickCard({ r: 3, lr: 100 }, { r: 5, lr: 50 }), { r: 5, lr: 50 }, '復習回数が多いほう');

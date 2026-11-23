@@ -64,6 +64,18 @@ export function ivlLabel(dueMs, at = nowMs()) {
   return Math.round((d / 365) * 10) / 10 + '年';
 }
 
+// ───────── 卒業（もう出さないカード） ─────────
+// prog.x = { guid: { v: 1(卒業) / 0(戻した), at: 変えた時刻(ms) } }。FSRS の状態（prog.c）はそのまま残す。
+export const isRetired = (prog, g) => !!(prog.x && prog.x[g] && prog.x[g].v);
+export function setRetired(prog, g, on, at = Date.now()) {
+  prog.x = prog.x || {};
+  prog.x[g] = { v: on ? 1 : 0, at };
+}
+/** 卒業したカード（order の順） */
+export const retiredList = (order, prog) => order.filter((g) => isRetired(prog, g));
+/** 新しいカード（卒業したものはのぞく）が残っているか */
+export const hasNewLeft = (order, prog) => order.some((g) => !isRetired(prog, g) && (!(prog.c || {})[g] || prog.c[g].t === State.New));
+
 // ───────── 今日の出題 ─────────
 /** その日に新しく始めたカードの数・追加した枠 */
 export function newInfo(prog, d = today()) { return (prog.nd && prog.nd[d]) || { n: 0, x: 0 }; }
@@ -80,6 +92,7 @@ export function dayQueue(order, prog, profile, at = nowMs(), d = today()) {
   const review = [], learn = [], fresh = [];
   let lim = newLimit(profile, prog, d);
   for (const g of order) {
+    if (isRetired(prog, g)) continue;
     const x = c[g];
     if (!x || x.t === State.New) { if (lim > 0) { fresh.push(g); lim--; } continue; }
     if (x.d >= eod) continue;
@@ -106,10 +119,11 @@ export function pickNext(q, prog, answeredToday, at = nowMs(), last = null) {
   return q.total ? (q.learn[0] || q.review[0] || q.fresh[0]) : null;
 }
 
-/** 単語帳ごとのまとめ：定着(m)・学習中(l)・未学習(u) */
+/** 単語帳ごとのまとめ：定着(m)・学習中(l)・未学習(u)・卒業(x) */
 export function summarize(order, prog) {
-  const c = prog.c || {}, s = { m: 0, l: 0, u: 0, t: order.length };
+  const c = prog.c || {}, s = { m: 0, l: 0, u: 0, x: 0, t: order.length };
   for (const g of order) {
+    if (isRetired(prog, g)) { s.x++; continue; }
     const x = c[g];
     if (!x || x.t === State.New) s.u++;
     else if (x.t === State.Review && (x.sd || 0) >= MATURE_DAYS) s.m++;

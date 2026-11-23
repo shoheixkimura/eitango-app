@@ -64,6 +64,15 @@ export function mergeProfile(a, b) {
 export function mergeProgress(a, b) {
   const m = { ...((a.upd || 0) >= (b.upd || 0) ? a : b), c: {}, nd: {} };
   for (const g of keysOf(a.c, b.c)) m.c[g] = pickCard((a.c || {})[g], (b.c || {})[g]);
+  // 卒業の印は、あとで変えたほう（戻したのもあとなら戻したほう）
+  const xs = keysOf(a.x, b.x);
+  if (xs.size) {
+    m.x = {};
+    for (const g of xs) {
+      const x = (a.x || {})[g], y = (b.x || {})[g];
+      m.x[g] = !x ? y : !y ? x : (x.at || 0) >= (y.at || 0) ? x : y;
+    }
+  } else delete m.x;
   for (const d of keysOf(a.nd, b.nd)) {
     const x = (a.nd || {})[d] || {}, y = (b.nd || {})[d] || {};
     m.nd[d] = { n: Math.max(x.n || 0, y.n || 0), x: Math.max(x.x || 0, y.x || 0) };

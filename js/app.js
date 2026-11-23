@@ -1,6 +1,6 @@
 import { APP_NAME, VERSION, HISTORY } from './config.js';
 import { today, now, addDays, parseD, weekStart, range, isDebugDate } from './dates.js';
-import { Rating, State, preview, rate, ivlLabel, dayQueue, pickNext, summarize, newInfo, MATURE_DAYS } from './srs.js';
+import { Rating, State, preview, rate, ivlLabel, dayQueue, pickNext, summarize, newInfo, MATURE_DAYS, isRetired, setRetired, retiredList, hasNewLeft } from './srs.js';
 import { dayN, weekN, lastWeekN, streak, ranking, gapToNext, mergeProfile, mergeProgress, trimProgress } from './records.js';
 import { audioCfg, ensureAudio, resetAudio, playVoice, preload, stopVoice, tone } from './audio.js';
 import { sanitize, plainText, soundsOf, imagesOf } from './sanitize.js';
@@ -222,7 +222,7 @@ function todaysMedia(D) {
   let extra = 0;
   for (const g of D.order) {
     if (extra >= 10) break;
-    if (prog.c[g] || q.fresh.includes(g)) continue;
+    if (prog.c[g] || q.fresh.includes(g) || isRetired(prog, g)) continue;
     const c = cardOf(D.deck, D.byG.get(g)); out.push(...c.snd, ...c.img, ...c.snd2); extra++;
   }
   return out;
@@ -371,7 +371,7 @@ async function viewHome() {
       ${taskHtml('dl:' + did)}</div>`;
   } else {
     const prog = getProg(P.id, did), q = dayQueue(D.order, prog, P), ni = newInfo(prog);
-    const leftNew = D.order.filter((g) => !prog.c[g] || prog.c[g].t === State.New).length;
+    const leftNew = hasNewLeft(D.order, prog);
     const doneToday = dayN(P, t);
     if (q.total) {
       main = `<div class="today"><div class="tnum"><b>${q.total}</b><small>枚 今日の残り</small></div>
@@ -417,14 +417,26 @@ const SND = {
   [Rating.Easy]: () => tone([[659, 0.08], [880, 0.08], [1175, 0.16]], 'sine', 0.1),
   fin: () => tone([[523, 0.12], [659, 0.12], [784, 0.12], [1047, 0.3]], 'sine', 0.12),
 };
+// 画面の下に少しだけ出るお知らせ（「元に戻す」つき）
+let toastTimer = null;
+function hideToast() { clearTimeout(toastTimer); const el = $('#toast'); if (el) el.remove(); }
+function showToast(msg, actLabel, onAct) {
+  hideToast();
+  const el = document.createElement('div');
+  el.id = 'toast'; el.className = 'toast'; el.setAttribute('role', 'status');
+  el.innerHTML = `<span>${esc(msg)}</span>${actLabel ? `<button class="tbtn">${esc(actLabel)}</button>` : ''}`;
+  if (actLabel) el.querySelector('button').onclick = () => { hideToast(); onAct(); };
+  document.body.appendChild(el);
+  toastTimer = setTimeout(hideToast, actLabel ? 7000 : 2500);
+}
 const GRADES = [[Rating.Again, 'もう一度', 'again', '1'], [Rating.Hard, 'むずかしい', 'hard', '2'], [Rating.Good, 'できた', 'good', '3'], [Rating.Easy, 'かんたん', 'easy', '4']];
 async function viewStudy(did) {
   const D = await loadDeck(did);
   if (!D || curView !== viewStudy) return go(viewHome);
   const prog = getProg(P.id, did);
-  const S = { cur: null, back: false, last: null, urls: [], card: null };
+  const S = { cur: null, back: false, last: null, urls: [], card: null, sheet: false };
   const revoke = () => { S.urls.forEach((u) => URL.revokeObjectURL(u)); S.urls = []; };
-  cleanup = () => { revoke(); stopVoice(); document.removeEventListener('keydown', onKey); };
+  cleanup = () => { revoke(); stopVoice(); hideToast(); document.removeEventListener('keydown', onKey); };
   const playName = (nm) => { if (nm) playVoice(did + '/' + nm, () => mediaBytes(did, nm), typeOf(nm)); };
   const play = () => { if (S.card) playName(S.card.snd[0]); };
   const playEx = () => { if (S.card && S.back) playName(S.card.snd2[0]); };
@@ -472,6 +484,7 @@ async function viewStudy(did) {
         <div class="sprog"><div class="bar"><i style="width:${pct}%"></i></div><small><span class="c-nw">新 ${q.fresh.length}</span>　<span class="c-ln">学習中 ${q.learn.length}</span>　<span class="c-rv">復習 ${q.review.length}</span>　今日 ${answered}枚</small></div></header>
       <section class="flash ${S.back ? 'flip' : ''}">
         ${isNew ? '<span class="tagnew">はじめて</span>' : ''}
+        ${S.back ? '<button class="grad" data-act="gradask" title="このカードを卒業させる（もう出さない）">🎓 卒業</button>' : ''}
         ${imgHtml ? `<div class="fimg">${imgHtml}</div>` : ''}
         <div class="en ${plainText(c.en).split(' ').length <= 3 ? 'word' : ''}">${en || '<span class="note">（英語がありません）</span>'}</div>
         ${c.snd[0] ? '<button class="btn listen" data-act="play">🔊 もう一度聞く<small>R</small></button>' : ''}
@@ -479,7 +492,25 @@ async function viewStudy(did) {
           ${ex ? `<div class="ex"><div class="exen">${ex}</div>${exja ? `<div class="exja">${exja}</div>` : ''}${c.snd2[0] ? '<button class="btn listen sm2" data-act="playex">🔊 例文を聞く<small>E</small></button>' : ''}</div>` : ''}` : ''}
       </section>
       <footer class="sfoot">${foot}</footer>
+      ${S.sheet ? `<div class="sheetbg" data-act="gradno"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="gradttl" data-act="none">
+        <div class="gicon">🎓</div><h3 id="gradttl">このカードを卒業させますか？</h3>
+        <p class="gword">${esc(plainText(c.en))}</p>
+        <p class="note">卒業したカードは、もう出ません（家族のほかの人には出ます）。<br>まちがえたときは「統計」の画面からいつでも戻せます。</p>
+        <div class="row col"><button class="btn primary big" data-act="gradyes">🎓 卒業させる</button><button class="btn big" data-act="gradno">やめる</button></div>
+      </div></div>` : ''}
     </div>`;
+  }
+  /** このカードを卒業させる（もう出さない）。答えの数には入れない */
+  function graduate() {
+    const g = S.cur, w = plainText(S.card.en), word = w.length > 24 ? w.slice(0, 23) + '…' : w;
+    setRetired(prog, g, true);
+    S.sheet = false; S.last = g;
+    const t = today();
+    if (!dayQueue(D.order, prog, P).total && dayN(P, t)) (P.log[t] = P.log[t] || { n: 0 }).fin = 1;
+    P.deck = did; updateSum(did); save(prog);
+    tone([[784, 0.1], [1047, 0.18]], 'sine', 0.08);
+    showToast(`🎓「${word}」を卒業させました`, '元に戻す', () => { setRetired(prog, g, false); updateSum(did); save(prog); showToast('元に戻しました。また出てきます'); });
+    next();
   }
   function answer(g) {
     if (!S.back) return;
@@ -498,7 +529,7 @@ async function viewStudy(did) {
     next();
   }
   function finished() {
-    const t = today(), prog2 = getProg(P.id, did), leftNew = D.order.some((g) => !prog2.c[g] || prog2.c[g].t === State.New);
+    const t = today(), leftNew = hasNewLeft(D.order, getProg(P.id, did));
     if (P.log[t] && P.log[t].n && !P.log[t].fin) { P.log[t].fin = 1; save(); }
     if (P.log[t] && P.log[t].fin) SND.fin();
     const R = ranking(DB.profiles), i = R.findIndex((r) => r.p === P);
@@ -511,6 +542,7 @@ async function viewStudy(did) {
   }
   function onKey(e) {
     if (e.target.closest && e.target.closest('input,select,textarea')) return;
+    if (S.sheet) { if (e.key === 'Escape') { S.sheet = false; render(); } return; } // 確認中はほかのキーを使わない
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!S.back) { S.back = true; render(); } else answer(Rating.Good); }
     else if (S.back && '1234'.includes(e.key)) answer(+e.key);
     else if (e.key === 'r' || e.key === 'R') play();
@@ -523,7 +555,10 @@ async function viewStudy(did) {
     show: () => { S.back = true; render(); },
     play: () => play(),
     playex: () => playEx(),
-    rate: (el) => answer(+el.dataset.g),
+    rate: (el) => { if (!S.sheet) answer(+el.dataset.g); },
+    gradask: () => { if (S.back) { S.sheet = true; render(); } },
+    gradno: () => { S.sheet = false; render(); },
+    gradyes: () => graduate(),
     more: () => { const t = today(), i = (prog.nd[t] = prog.nd[t] || { n: 0, x: 0 }); i.x = (i.x || 0) + 10; save(prog); if (cloudOn()) fillMedia(DB.family, D.deck, todaysMedia(D), () => {}, true).catch(() => {}); next(); },
   });
   next();
@@ -541,10 +576,11 @@ async function viewStats(pid) {
     if (p === P && DECKS[d.id]) s = summarize(DECKS[d.id].order, getProg(p.id, d.id));
     else if (p === P && d.local) { const D = await loadDeck(d.id); if (D) s = summarize(D.order, getProg(p.id, d.id)); }
     if (curView !== viewStats) return;
-    const n = s ? s.t : d.count || 0, m = s ? s.m : 0, l = s ? s.l : 0, u = s ? s.u : n;
+    const n = s ? s.t : d.count || 0, m = s ? s.m : 0, l = s ? s.l : 0, u = s ? s.u : n, x = (s && s.x) || 0;
     rows.push(`<div class="dst"><div class="dl">${esc(d.name)}<small>${n}文</small></div>
-      <div class="seg"><i class="s-m" style="flex:${m}"></i><i class="s-l" style="flex:${l}"></i><i class="s-u" style="flex:${u}"></i></div>
-      <div class="leg"><span><i class="s-m"></i>定着 <b>${m}</b></span><span><i class="s-l"></i>学習中 <b>${l}</b></span><span><i class="s-u"></i>未学習 <b>${u}</b></span></div></div>`);
+      <div class="seg"><i class="s-x" style="flex:${x}"></i><i class="s-m" style="flex:${m}"></i><i class="s-l" style="flex:${l}"></i><i class="s-u" style="flex:${u}"></i></div>
+      <div class="leg">${x ? `<span><i class="s-x"></i>卒業 <b>${x}</b></span>` : ''}<span><i class="s-m"></i>定着 <b>${m}</b></span><span><i class="s-l"></i>学習中 <b>${l}</b></span><span><i class="s-u"></i>未学習 <b>${u}</b></span></div>
+      ${p === P && x && DECKS[d.id] ? `<button class="linkbtn" data-act="grads" data-id="${d.id}">🎓 卒業したカードを見る・戻す</button>` : ''}</div>`);
   }
   app.innerHTML = `<div class="page narrow">
     <header class="top"><button class="btn back" data-act="home">← もどる</button><h2>📊 統計</h2><span></span></header>
@@ -561,7 +597,28 @@ async function viewStats(pid) {
       <p class="note">濃い色の日＝その日の分を終えた日（連続日数に数える日）</p></section>
     <section class="card"><h3>単語帳ごと<small>定着＝次の復習まで${MATURE_DAYS}日以上のカード</small></h3>${rows.join('') || '<p class="note">単語帳がありません</p>'}</section>
   </div>`;
-  onAct({ home: () => go(viewHome), who: (el) => go(viewStats, el.dataset.id) });
+  onAct({ home: () => go(viewHome), who: (el) => go(viewStats, el.dataset.id), grads: (el) => go(viewGraduates, el.dataset.id) });
+}
+
+// ───────── 卒業したカード ─────────
+async function viewGraduates(did) {
+  const D = await loadDeck(did);
+  if (!D || curView !== viewGraduates) return go(viewStats, P.id);
+  const prog = getProg(P.id, did);
+  const draw = () => {
+    const list = retiredList(D.order, prog).map((g) => [g, cardOf(D.deck, D.byG.get(g))])
+      .sort((a, b) => (prog.x[b[0]].at || 0) - (prog.x[a[0]].at || 0)); // 最近卒業した順
+    app.innerHTML = `<div class="page narrow">
+      <header class="top"><button class="btn back" data-act="back">← もどる</button><h2>🎓 卒業したカード</h2><span></span></header>
+      <p class="note">${esc(P.avatar + ' ' + P.name)}さんの「${esc(D.deck.name)}」で、もう出さないことにしたカードです（${list.length}枚）。「戻す」を押すと、前の記録のまま、また出てくるようになります。</p>
+      <section class="card glist">${list.map(([g, c]) => `<div class="gitem"><div class="gtxt"><b>${esc(plainText(c.en))}</b><small>${esc(plainText(c.ja))}</small></div><button class="btn sm" data-act="back1" data-g="${esc(g)}">戻す</button></div>`).join('') || '<p class="note">卒業したカードはありません</p>'}</section>
+    </div>`;
+  };
+  draw();
+  onAct({
+    back: () => go(viewStats, P.id),
+    back1: (el) => { setRetired(prog, el.dataset.g, false); updateSum(did); save(prog); showToast('戻しました。また出てきます'); draw(); },
+  });
 }
 
 // ───────── 取り込み ─────────

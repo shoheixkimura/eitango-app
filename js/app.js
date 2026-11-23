@@ -280,7 +280,7 @@ function cheer(R, me) {
 function viewProfiles() {
   const R = ranking(DB.profiles);
   app.innerHTML = `<div class="page narrow">
-    <h1 class="logo"><span class="mark">A<i>あ</i></span>${esc(APP_NAME)}<small>家族で英文を覚えよう</small></h1>
+    <h1 class="logo"><span class="mark">A<i>あ</i></span>${esc(APP_NAME)}<small>家族で英語を覚えよう</small></h1>
     ${DB.profiles.length ? `<h2 class="sec">だれが学習しますか？</h2>
       <div class="people">${DB.profiles.map((p) => `<button class="person" data-act="pick" data-id="${p.id}"><span class="pav">${p.avatar}</span><span class="pname">${esc(p.name)}</span><small>🔥 ${streak(p)}日・今週 ${weekN(p)}枚</small></button>`).join('')}
       ${DB.profiles.length < MAX_PEOPLE ? '<button class="person add" data-act="add"><span class="pav">＋</span><span class="pname">追加</span></button>' : ''}</div>

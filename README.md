@@ -7,7 +7,7 @@ Anki の .apkg ファイルを取り込み、FSRS（目標の記憶率 90%）で
 
 - ビルドなしの HTML / CSS / JavaScript（ES モジュール）。GitHub Pages でそのまま公開できます。
 - オフラインでも学習できます（PWA）。記録は端末に保存し、つながったときに家族の端末と同期します。
-- 仕様は [spec.md](spec.md) にあります。
+- 仕様は [spec.md](spec.md) にあります（Firebase は仕様とちがい、漢字アプリとは別のプロジェクトにしました）。
 
 ## 使い方
 
@@ -45,8 +45,7 @@ python3 -m http.server 8000
 
 ## Firebase の設定（無料の Spark プランのまま）
 
-漢字アプリと同じ Firebase プロジェクト（`dopakanji`）の Firestore だけを使います。Blaze プランへの切り替えや Storage は要りません。
-置き場所は漢字アプリと混ざらないように別のコレクションにしています。
+英文アプリ専用の Firebase プロジェクト `majianki` の Firestore だけを使います（漢字アプリとは別のプロジェクトです）。Blaze プランや Storage は要りません。
 
 | 何を | どこに |
 | --- | --- |
@@ -57,30 +56,14 @@ python3 -m http.server 8000
 
 合言葉そのものはどこにも送りません（SHA-256 のハッシュだけを置き場所の名前に使います）。
 市販教材の音声を扱うので、単語帳の中身は公開リポジトリや GitHub Pages には置かず、家族の合言葉の場所にだけ置きます。
+接続先の値（`projectId`・`apiKey`）は `js/cloud-config.js` にあります。公開されてよい値で、データを守るのはルールと合言葉です。
 
-### Firestore のルールを追加する
+### Firestore のルールを設定する
 
-[Firebase コンソール](https://console.firebase.google.com/) → `dopakanji` → Firestore Database →「ルール」タブで、
-**いまある漢字アプリのルールは消さずに**、`match /databases/{database}/documents { … }` の中に次の2つのかたまりを追加して「公開」します（全体の例は [`firebase/firestore.rules`](firebase/firestore.rules)）。
-
-```
-    match /eitango_families/{fam}/{col}/{doc} {
-      allow read: if fam.size() == 64 && col in ['profiles', 'progress', 'decks'];
-      allow create, update: if fam.size() == 64 && col in ['profiles', 'progress', 'decks']
-        && request.resource.data.keys().hasOnly(['json', 'updated'])
-        && request.resource.data.json is string
-        && request.resource.data.json.size() < 1000000;
-      allow delete: if false;
-    }
-    match /eitango_families/{fam}/blobs/{id} {
-      allow get: if fam.size() == 64;
-      allow create: if fam.size() == 64
-        && request.resource.data.keys().hasOnly(['b', 'updated'])
-        && request.resource.data.b is bytes
-        && request.resource.data.b.size() <= 950000;
-      allow list, update, delete: if false;
-    }
-```
+1. [Firebase コンソール](https://console.firebase.google.com/) で `majianki` をひらく
+2. 左のメニュー「構築」→「Firestore Database」→ 上のタブ「ルール」
+3. 書いてある文字を**全部消して**、[`firebase/firestore.rules`](firebase/firestore.rules) の中身を**全部はりつける**
+4. 「公開」を押す
 
 - 人の記録・カードの記録・単語帳の一覧は、読み取り・作成・更新ができ、削除はできません。
 - 単語帳のかたまりは、1つずつの読み取りと新しく作ることだけができます（上書き・一覧・削除はできません）。1つ 950KB まで。

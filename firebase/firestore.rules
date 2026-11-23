@@ -1,23 +1,20 @@
-// 英文暗記アプリ用の Firestore ルール（案）。無料の Spark プランのまま使える。
-// いまある漢字アプリのルールは消さずに、match /databases/{database}/documents { … } の中に
-// 下の2つの「match /eitango_families/…」のかたまりを追加してください。
+// 英文暗記アプリ（Firebase プロジェクト majianki）の Firestore ルール。
+// Firebase コンソール → Firestore Database →「ルール」タブの中身を、これと全部入れかえて「公開」する。
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // （ここに、いまある漢字アプリのルールがそのまま残る）
-
-    // ── 英文暗記アプリ：人の記録・カードの記録・単語帳の一覧（読み取り・作成・更新） ──
+    // 人の記録・カードの記録・単語帳の一覧（読み取り・作成・更新はできる。削除はできない）
     match /eitango_families/{fam}/{col}/{doc} {
       allow read: if fam.size() == 64 && col in ['profiles', 'progress', 'decks'];
       allow create, update: if fam.size() == 64 && col in ['profiles', 'progress', 'decks']
         && request.resource.data.keys().hasOnly(['json', 'updated'])
         && request.resource.data.json is string
         && request.resource.data.json.size() < 1000000;
-      allow delete: if false; // 消せるのは Firebase コンソールの管理者だけ
+      allow delete: if false;
     }
 
-    // ── 英文暗記アプリ：単語帳の本文と音声・画像のかたまり（1つずつ読む・新しく作るだけ） ──
+    // 単語帳の本文と音声・画像のかたまり（1つずつ読む・新しく作るだけ）
     match /eitango_families/{fam}/blobs/{id} {
       allow get: if fam.size() == 64;
       allow create: if fam.size() == 64

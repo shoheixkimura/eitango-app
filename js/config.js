@@ -1,7 +1,8 @@
-// アプリ名・バージョン・更新履歴。アプリ名を決めたら APP_NAME と index.html・manifest.webmanifest の名前を差しかえる。
-export const APP_NAME = '(アプリ名)';
-export const VERSION = '1.1.0';
+// アプリ名・バージョン・更新履歴。アプリ名を変えるときは APP_NAME と index.html・manifest.webmanifest の名前もそろえる（半角カタカナ）。
+export const APP_NAME = 'ﾌﾞﾃﾞｨ';
+export const VERSION = '1.1.1';
 export const HISTORY = [
+  ['1.1.1', '2026-11-22', ['アプリ名を「ﾌﾞﾃﾞｨ」に']],
   ['1.1.0', '2026-11-22', ['単語帳の共有を Firestore だけで行うように変更（無料の Spark プランのまま使える。Storage と Blaze プランは不要に）', 'Firebase を漢字アプリとは別の、英文アプリ専用のプロジェクトに']],
   ['1.0.0', '2026-11-22', [
     '最初の版。.apkg（旧形式・新しい形式）の取り込みとフィールドの割り当て',

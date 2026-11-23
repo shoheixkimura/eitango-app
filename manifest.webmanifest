@@ -1,6 +1,6 @@
 {
-  "name": "(アプリ名)",
-  "short_name": "(アプリ名)",
+  "name": "ﾌﾞﾃﾞｨ",
+  "short_name": "ﾌﾞﾃﾞｨ",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

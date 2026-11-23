@@ -222,3 +222,6 @@ header.top > span:empty { width: 70px; }
 .toast span { flex: 1; min-width: 0; }
 .tbtn { color: var(--acc); font-weight: 700; background: none; border: 0; white-space: nowrap; }
 @keyframes fade { from { opacity: 0; } }
+
+/* アプリのアイコン（最初の画面） */
+img.mark { display: block; width: 72px; height: 72px; border-radius: 50%; background: none; margin: 0 auto 6px; box-shadow: var(--shadow); }

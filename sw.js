@@ -1,7 +1,7 @@
 // オフラインでも動くように。ネット優先（毎回サーバーに新しい版がないか確かめる）・だめならキャッシュ。
 // 単語帳の中身（英文・音声）はここには入れない（IndexedDB に入れる）。
-const CACHE = 'eitango-v1.3.0';
-const FILES = ['./', 'index.html', 'style.css', 'manifest.webmanifest', 'icon.svg', 'icon-180.png',
+const CACHE = 'eitango-v1.3.1';
+const FILES = ['./', 'index.html', 'style.css', 'manifest.webmanifest', 'favicon.png', 'icon-180.png', 'icon-192.png',
   'js/app.js', 'js/config.js', 'js/dates.js', 'js/srs.js', 'js/records.js', 'js/idb.js', 'js/sanitize.js', 'js/importer.js', 'js/anki-worker.js',
   'js/audio.js', 'js/cloud.js', 'js/cloud-config.js', 'js/share.js',
   'vendor/ts-fsrs.mjs', 'vendor/fflate.umd.js', 'vendor/fzstd.umd.js', 'vendor/sql-wasm.js', 'vendor/sql-wasm.wasm'];

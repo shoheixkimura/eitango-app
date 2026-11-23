@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#3d5af1"/>
-  <path d="M96 140a44 44 0 0 1 44-44h168a44 44 0 0 1 44 44v104a44 44 0 0 1-44 44h-92l-60 52v-52h-16a44 44 0 0 1-44-44z" fill="#fff"/>
-  <text x="224" y="236" font-family="Helvetica, Arial, sans-serif" font-size="150" font-weight="700" text-anchor="middle" fill="#3d5af1">A</text>
-  <path d="M232 260a40 40 0 0 1 40-40h132a40 40 0 0 1 40 40v96a40 40 0 0 1-40 40h-12v48l-54-48h-66a40 40 0 0 1-40-40z" fill="#ffc94d"/>
-  <text x="338" y="356" font-family="Hiragino Sans, 'Noto Sans JP', sans-serif" font-size="112" font-weight="700" text-anchor="middle" fill="#1d2540">あ</text>
-</svg>

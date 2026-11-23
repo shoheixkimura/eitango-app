@@ -4,7 +4,7 @@ import { Rating, State, preview, rate, ivlLabel, dayQueue, pickNext, summarize, 
 import { dayN, weekN, lastWeekN, streak, ranking, gapToNext, mergeProfile, mergeProgress, trimProgress } from './records.js';
 import { audioCfg, ensureAudio, resetAudio, playVoice, preload, stopVoice, tone } from './audio.js';
 import { sanitize, plainText, soundsOf, imagesOf } from './sanitize.js';
-import { readApkg, guessMap, buildDeck, deckIdFor, cardOf, ROLES } from './importer.js';
+import { readApkg, guessMap, buildDeck, sortNotes, deckIdFor, cardOf, ROLES } from './importer.js';
 import * as idb from './idb.js';
 import { cloudReady, listDocs, getDoc, putDoc } from './cloud.js';
 import { uploadDeck, uploadState, fetchDeck, fillMedia, fetchOne, deckMeta, planPack, typeOf, isAudio, isRunning } from './share.js';
@@ -599,13 +599,15 @@ function viewImport() {
     const maps = {};
     for (const mid of mids) maps[mid] = guessMap(res.models[mid].fields, res.notes.filter((n) => n.mid === mid));
     const id = await deckIdFor(res.topName), exists = DB.decks[id];
+    let order = 'id';
     const draw = () => {
       $('#step').innerHTML = `<h3>単語帳の名前</h3>
         <label class="fld"><input id="dname" type="text" maxlength="40" value="${esc(exists ? exists.name : res.topName)}"></label>
         ${exists ? '<p class="note ok">✔ 前に取り込んだ単語帳と同じです。上書きしても学習記録はそのまま続きます。</p>' : ''}
+        <label class="fld inline">新しいカードを出す順番<select id="order"><option value="id" ${order === 'id' ? 'selected' : ''}>本の順（ノートを作った順）</option><option value="anki" ${order === 'anki' ? 'selected' : ''}>Anki に保存されていた順</option></select></label>
         <p class="note">${res.notes.length}文・音声と画像 ${res.media.length}個${res.missing ? `（見つからないファイル ${res.missing}個）` : ''}</p>
         ${mids.map((mid) => {
-    const m = res.models[mid], mp = maps[mid], ns = res.notes.filter((n) => n.mid === mid);
+    const m = res.models[mid], mp = maps[mid], ns = sortNotes(res.notes, order).filter((n) => n.mid === mid);
     const sel = (role) => `<select data-mid="${mid}" data-role="${role}"><option value="-1">なし</option>${m.fields.map((f, i) => `<option value="${i}" ${mp[role] === i ? 'selected' : ''}>${esc(f)}</option>`).join('')}</select>`;
     return `<h3>フィールドの割り当て<small>${esc(m.name)}（${ns.length}文）</small></h3>
           <div class="maps">${ROLES.map(([r, label]) => `<label class="fld inline">${label}${sel(r)}</label>`).join('')}</div>
@@ -621,6 +623,7 @@ function viewImport() {
     draw();
     app.onchange = (e) => {
       const s = e.target;
+      if (s.id === 'order') { order = s.value; const nm = $('#dname').value; draw(); $('#dname').value = nm; return; }
       if (s.dataset.role) {
         const v = +s.value, mp = maps[s.dataset.mid];
         for (const [r] of ROLES) if (r !== s.dataset.role && mp[r] === v && v >= 0) mp[r] = -1; // 同じフィールドを2つに使わない
@@ -634,7 +637,7 @@ function viewImport() {
         if (mids.some((mid) => maps[mid].en < 0)) return alert('「英文（表）」にするフィールドを選んでください');
         el.disabled = true;
         const name = $('#dname').value.trim() || res.topName;
-        const deck = buildDeck(res, maps, id, name);
+        const deck = buildDeck(res, maps, id, name, order);
         if (exists && exists.created) deck.created = Math.max(Date.now(), exists.created + 1);
         deck.pack = planPack(deck);
         $('#step').innerHTML = '<p>この端末に保存しています…</p>';

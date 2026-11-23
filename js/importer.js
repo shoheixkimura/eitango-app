@@ -85,11 +85,19 @@ export async function stableId(prefix, s) {
 export const deckIdFor = (topName) => stableId('eitango-deck', topName).then((h) => 'd' + h);
 
 /** 取り込み結果と割り当てから、このアプリの単語帳を作る（音声・画像は別に保存する） */
-export function buildDeck(res, maps, id, name) {
+/** 新しいカードを出す順番：'id'＝ノートを作った順（ふつうは本の番号順）、'anki'＝Anki に保存されていた順 */
+export function sortNotes(notes, how = 'id') {
+  if (how !== 'anki') return notes; // 取り込んだときにノート ID 順になっている
+  return notes.map((n, i) => [n, i]).sort(([a, i], [b, j]) => {
+    const x = a.k || [2, 0], y = b.k || [2, 0];
+    return x[0] - y[0] || x[1] - y[1] || i - j;
+  }).map(([n]) => n);
+}
+export function buildDeck(res, maps, id, name, how = 'id') {
   const models = {};
   for (const [mid, m] of Object.entries(res.models)) if (maps[mid]) models[mid] = { name: m.name, fields: m.fields, map: maps[mid] };
   const seen = new Set(), notes = [];
-  for (const n of res.notes) {
+  for (const n of sortNotes(res.notes, how)) {
     if (!models[n.mid] || seen.has(n.guid)) continue;
     seen.add(n.guid);
     notes.push([n.guid, n.mid, n.f]);

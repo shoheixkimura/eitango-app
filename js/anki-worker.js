@@ -75,10 +75,8 @@ self.onmessage = async (e) => {
       if (top) topCount[top] = (topCount[top] || 0) + 1;
     }
     const notes = rows(db, 'select id, guid, mid, flds from notes').map((r) => ({ id: r.id, guid: r.guid, mid: String(r.mid), f: String(r.flds).split('\x1f') }));
-    notes.sort((a, b) => {
-      const x = order[a.id] || [2, 0], y = order[b.id] || [2, 0];
-      return x[0] - y[0] || x[1] - y[1] || a.id - b.id;
-    });
+    // ノート ID（作った順）にならべておく。Anki に保存されていた順（新しいカードの due）は k に入れる
+    notes.sort((a, b) => a.id - b.id);
     db.close();
     const tops = Object.entries(topCount).sort((a, b) => b[1] - a[1]);
     const topName = (tops.find((t) => t[0] !== 'Default') || tops[0] || ['単語帳'])[0];
@@ -130,7 +128,7 @@ self.onmessage = async (e) => {
       res();
     });
     const missing = [...used].filter((nm) => !media.some((m) => m.name === nm)).length;
-    self.postMessage({ type: 'done', format: colName, models, topName, notes: notes.map((n) => ({ guid: n.guid, mid: n.mid, f: n.f })), media, missing }, transfer);
+    self.postMessage({ type: 'done', format: colName, models, topName, notes: notes.map((n) => ({ guid: n.guid, mid: n.mid, f: n.f, k: order[n.id] || [2, 0] })), media, missing }, transfer);
   } catch (err) {
     self.postMessage({ type: 'error', message: String((err && err.message) || err) });
   }

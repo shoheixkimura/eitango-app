@@ -110,8 +110,11 @@ try {
 
   group('取り込み（フィールドの推定・安全な表示）');
   const notes = [{ f: ['I like apples.', 'りんごが好きです。', '[sound:a.mp3]', '<img src="x.png">'] }, { f: ['See you.', 'またね。', '[sound:b.mp3]', ''] }];
-  eq(guessMap(['A', 'B', 'C', 'D'], notes), { en: 0, ja: 1, snd: 2, img: 3 }, '英文・和訳・音声・画像を推定');
-  eq(guessMap(['Front', 'Back'], [{ f: ['犬', 'dog'] }]), { en: 1, ja: 0, snd: -1, img: -1 }, '和訳が表のデータでも、英文を表にする');
+  eq(guessMap(['A', 'B', 'C', 'D'], notes), { en: 0, ja: 1, snd: 2, img: 3, pos: -1, ex: -1, exja: -1, snd2: -1 }, '英文・和訳・音声・画像を推定');
+  eq(guessMap(['Front', 'Back'], [{ f: ['犬', 'dog'] }]), { en: 1, ja: 0, snd: -1, img: -1, pos: -1, ex: -1, exja: -1, snd2: -1 }, '和訳が表のデータでも、英語を表にする');
+  const wn = [{ f: ['p1q5_0001', 'last', '動詞', '続く、継続する', 'The meeting only lasted a few minutes.', '話し合いは数分だけ続いた。', '[sound:w1.mp3]', '[sound:s1.mp3]'] }];
+  eq(guessMap(['ID', '単語', '品詞', '意味', '例文', '例文意味', '単語音声', '例文音声'], wn), { en: 1, ja: 3, snd: 6, img: -1, pos: 2, ex: 4, exja: 5, snd2: 7 }, '単語帳（ID・単語・品詞・意味・例文・例文意味・単語音声・例文音声）をフィールド名から推定');
+  eq(guessMap(['Front', 'Back', 'Sound'], [{ f: ['I like it.', '好きです。', '[sound:a.mp3]'] }]), { en: 0, ja: 1, snd: 2, img: -1, pos: -1, ex: -1, exja: -1, snd2: -1 }, 'DUO の形（Front・Back・Sound）');
   const html = sanitize('<b>Hi</b><script>alert(1)</script><img src="x.png" onerror="alert(2)"><a href="javascript:x">link</a>[sound:a.mp3]', (n) => (n === 'x.png' ? 'blob:ok' : null));
   ok(!/script|onerror|javascript|sound/.test(html), 'script・イベント属性・リンク・[sound:] を取りのぞく', html);
   ok(html.includes('<b>Hi</b>') && html.includes('src="blob:ok"') && html.includes('link'), '文字・太字・画像は残る', html);

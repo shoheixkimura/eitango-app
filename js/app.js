@@ -215,7 +215,7 @@ function todaysMedia(D) {
   for (const g of [...q.learn, ...q.review, ...q.fresh, ...D.order.slice(0, 0)]) {
     const n = D.byG.get(g); if (!n) continue;
     const c = cardOf(D.deck, n);
-    out.push(...c.snd, ...c.img, ...imagesOf(c.en), ...imagesOf(c.ja));
+    out.push(...c.snd, ...c.img, ...imagesOf(c.en), ...imagesOf(c.ja), ...c.snd2);
   }
   // 「あと10枚」に備えて、その先の新しいカード10枚分も
   const prog = getProg(P.id, D.deck.id);
@@ -223,7 +223,7 @@ function todaysMedia(D) {
   for (const g of D.order) {
     if (extra >= 10) break;
     if (prog.c[g] || q.fresh.includes(g)) continue;
-    const c = cardOf(D.deck, D.byG.get(g)); out.push(...c.snd, ...c.img); extra++;
+    const c = cardOf(D.deck, D.byG.get(g)); out.push(...c.snd, ...c.img, ...c.snd2); extra++;
   }
   return out;
 }
@@ -425,7 +425,9 @@ async function viewStudy(did) {
   const S = { cur: null, back: false, last: null, urls: [], card: null };
   const revoke = () => { S.urls.forEach((u) => URL.revokeObjectURL(u)); S.urls = []; };
   cleanup = () => { revoke(); stopVoice(); document.removeEventListener('keydown', onKey); };
-  const play = () => { if (S.card && S.card.snd[0]) playVoice(did + '/' + S.card.snd[0], () => mediaBytes(did, S.card.snd[0]), typeOf(S.card.snd[0])); };
+  const playName = (nm) => { if (nm) playVoice(did + '/' + nm, () => mediaBytes(did, nm), typeOf(nm)); };
+  const play = () => { if (S.card) playName(S.card.snd[0]); };
+  const playEx = () => { if (S.card && S.back) playName(S.card.snd2[0]); };
 
   async function next() {
     revoke(); stopVoice();
@@ -458,6 +460,7 @@ async function viewStudy(did) {
     const imgHtml = c.img.filter((n) => c.imgs[n]).map((n) => `<img src="${c.imgs[n]}" alt="">`).join('');
     const mp = D.deck.models[D.byG.get(S.cur)[1]].map, url = (n) => c.imgs[n] || null;
     const en = sanitize(c.en, url, mp.img === mp.en), ja = sanitize(c.ja, url, mp.img === mp.ja);
+    const pos = plainText(c.pos), ex = sanitize(c.ex, url, true), exja = sanitize(c.exja, url, true);
     let foot;
     if (!S.back) foot = `<button class="btn primary huge show" data-act="show">答えを見る<small>スペース</small></button>`;
     else {
@@ -470,9 +473,10 @@ async function viewStudy(did) {
       <section class="flash ${S.back ? 'flip' : ''}">
         ${isNew ? '<span class="tagnew">はじめて</span>' : ''}
         ${imgHtml ? `<div class="fimg">${imgHtml}</div>` : ''}
-        <div class="en">${en || '<span class="note">（英文がありません）</span>'}</div>
+        <div class="en ${plainText(c.en).split(' ').length <= 3 ? 'word' : ''}">${en || '<span class="note">（英語がありません）</span>'}</div>
         ${c.snd[0] ? '<button class="btn listen" data-act="play">🔊 もう一度聞く<small>R</small></button>' : ''}
-        ${S.back ? `<hr><div class="ja">${ja || '<span class="note">（和訳がありません）</span>'}</div>` : ''}
+        ${S.back ? `<hr>${pos ? `<span class="pos">${esc(pos)}</span>` : ''}<div class="ja">${ja || '<span class="note">（和訳がありません）</span>'}</div>
+          ${ex ? `<div class="ex"><div class="exen">${ex}</div>${exja ? `<div class="exja">${exja}</div>` : ''}${c.snd2[0] ? '<button class="btn listen sm2" data-act="playex">🔊 例文を聞く<small>E</small></button>' : ''}</div>` : ''}` : ''}
       </section>
       <footer class="sfoot">${foot}</footer>
     </div>`;
@@ -510,6 +514,7 @@ async function viewStudy(did) {
     if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!S.back) { S.back = true; render(); } else answer(Rating.Good); }
     else if (S.back && '1234'.includes(e.key)) answer(+e.key);
     else if (e.key === 'r' || e.key === 'R') play();
+    else if (e.key === 'e' || e.key === 'E') playEx();
   }
   document.addEventListener('keydown', onKey);
   onAct({
@@ -517,6 +522,7 @@ async function viewStudy(did) {
     home: () => go(viewHome),
     show: () => { S.back = true; render(); },
     play: () => play(),
+    playex: () => playEx(),
     rate: (el) => answer(+el.dataset.g),
     more: () => { const t = today(), i = (prog.nd[t] = prog.nd[t] || { n: 0, x: 0 }); i.x = (i.x || 0) + 10; save(prog); if (cloudOn()) fillMedia(DB.family, D.deck, todaysMedia(D), () => {}, true).catch(() => {}); next(); },
   });
